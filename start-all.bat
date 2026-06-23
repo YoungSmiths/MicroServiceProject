@@ -13,6 +13,12 @@ if not exist "%JAVA_EXE%" (
     set "JAVA_EXE=java"
 )
 
+:: Maven 路径配置
+set "MAVEN_EXE=D:\software\green\apache-maven-3.9.8\bin\mvn.cmd"
+if not exist "%MAVEN_EXE%" (
+    set "MAVEN_EXE=mvn"
+)
+
 set "GATEWAY_JAR=%SCRIPT_DIR%micro-gateway\target\micro-gateway-1.0.0.jar"
 set "USER_JAR=%SCRIPT_DIR%micro-user-service\target\micro-user-service-1.0.0.jar"
 set "ORDER_JAR=%SCRIPT_DIR%micro-order-service\target\micro-order-service-1.0.0.jar"
@@ -24,6 +30,7 @@ if not exist "%JM.LOG.PATH%" mkdir "%JM.LOG.PATH%"
 
 echo [%date% %time%] start-all.bat begin > "%LOG_FILE%"
 echo [%date% %time%] java executable: %JAVA_EXE% >> "%LOG_FILE%"
+echo [%date% %time%] maven executable: %MAVEN_EXE% >> "%LOG_FILE%"
 echo [%date% %time%] redis password configured for child processes >> "%LOG_FILE%"
 echo [%date% %time%] nacos client log path: %JM.LOG.PATH% >> "%LOG_FILE%"
 
@@ -34,23 +41,33 @@ echo [INFO] SEATA_ENABLED = %SEATA_ENABLED%
 echo [INFO] To enable Seata, set SEATA_ENABLED=true before running this script
 echo ========================================
 
+:: Maven 编译打包
+echo [INFO] Building project with Maven...
+echo [%date% %time%] starting maven build >> "%LOG_FILE%"
+call "%MAVEN_EXE%" clean package -DskipTests -Dmaven.test.skip=true >> "%LOG_FILE%" 2>&1
+if errorlevel 1 (
+    echo [ERROR] Maven build failed
+    echo [%date% %time%] maven build failed >> "%LOG_FILE%"
+    exit /b 1
+)
+echo [INFO] Maven build completed successfully
+echo [%date% %time%] maven build successful >> "%LOG_FILE%"
+
+:: 检查 JAR 文件是否存在
 if not exist "%GATEWAY_JAR%" (
-    echo [ERROR] Gateway jar not found: %GATEWAY_JAR%
-    echo [ERROR] Please run build.bat first
+    echo [ERROR] Gateway jar not found after build: %GATEWAY_JAR%
     echo [%date% %time%] gateway jar missing >> "%LOG_FILE%"
     exit /b 1
 )
 
 if not exist "%USER_JAR%" (
-    echo [ERROR] User Service jar not found: %USER_JAR%
-    echo [ERROR] Please run build.bat first
+    echo [ERROR] User Service jar not found after build: %USER_JAR%
     echo [%date% %time%] user-service jar missing >> "%LOG_FILE%"
     exit /b 1
 )
 
 if not exist "%ORDER_JAR%" (
-    echo [ERROR] Order Service jar not found: %ORDER_JAR%
-    echo [ERROR] Please run build.bat first
+    echo [ERROR] Order Service jar not found after build: %ORDER_JAR%
     echo [%date% %time%] order-service jar missing >> "%LOG_FILE%"
     exit /b 1
 )

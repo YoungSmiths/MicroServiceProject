@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: micro-gateway
+  main:
+    web-application-type: reactive
   cloud:
     compatibility-verifier:
       enabled: false
@@ -12,7 +14,7 @@ spring:
         server-addr: ${NACOS_SERVER:127.0.0.1:8848}
         namespace: ${NACOS_NAMESPACE:}
         group: ${NACOS_GROUP:MICRO_GROUP}
-        register-enabled: false
+        register-enabled: true
       config:
         server-addr: ${NACOS_SERVER:127.0.0.1:8848}
         namespace: ${NACOS_NAMESPACE:}
@@ -28,7 +30,7 @@ spring:
           lower-case-service-id: true
       routes:
         - id: user-service
-          uri: http://127.0.0.1:8081
+          uri: lb://user-service
           predicates:
             - Path=/api/user/**
           filters:
@@ -38,7 +40,7 @@ spring:
                 redis-rate-limiter.replenishRate: 20
                 redis-rate-limiter.burstCapacity: 40
         - id: order-service
-          uri: http://127.0.0.1:8082
+          uri: lb://order-service
           predicates:
             - Path=/api/order/**
           filters:
@@ -67,12 +69,29 @@ spring:
       httpclient:
         connect-timeout: 1000
         response-timeout: 3s
+    loadbalancer:
+      ribbon:
+        enabled: false
 
 # Sentinel 配置
 sentinel:
   eager: true
   transport:
-    dashboard: ${SENTINEL_DASHBOARD:127.0.0.1:8081}
+    dashboard: ${SENTINEL_DASHBOARD:127.0.0.1:8181}
+    port: 8719
+  # 当 Sentinel 连接失败时，不影响服务正常启动
+  scg:
+    fallback:
+      mode: response
+      response-body: "{\"code\":429,\"message\":\"Sentinel 限流，请稍后再试\"}"
+  # Sentinel 数据源配置（可选，用于持久化规则）
+  # datasource:
+  #   flow:
+  #     nacos:
+  #       server-addr: ${NACOS_SERVER:127.0.0.1:8848}
+  #       data-id: ${spring.application.name}-flow-rules
+  #       group-id: SENTINEL_GROUP
+  #       rule-type: flow
 
 # Redisson 配置
 spring.redis:
@@ -93,3 +112,4 @@ logging:
   level:
     root: INFO
     org.springframework.cloud.gateway: DEBUG
+    org.springframework.cloud.loadbalancer: DEBUG

@@ -198,17 +198,7 @@ MicroServiceProject/
 
 ## 快速启动
 
-### 0. 编译项目
-```bash
-# Windows
-build.bat
-
-# Linux/Mac
-chmod +x build.sh
-./build.sh
-```
-
-### 1. 一键启动所有服务
+### 1. 一键启动所有服务（推荐）
 ```bash
 # Windows
 start-all.bat
@@ -221,6 +211,11 @@ chmod +x start-all.sh
 # Windows: set SEATA_ENABLED=true && start-all.bat
 # Linux/Mac: SEATA_ENABLED=true ./start-all.sh
 ```
+
+**说明**：`start-all` 脚本会自动执行以下步骤：
+1. 使用 Maven 编译打包整个项目（跳过测试）
+2. 启动 Docker 基础设施（Nacos、MySQL、Redis 等）
+3. 依次启动 Gateway、User Service、Order Service
 
 ### 2. 一键停止所有服务
 ```bash
@@ -239,8 +234,20 @@ chmod +x stop-all.sh
 - Gateway: http://127.0.0.1:8080
 - Mock Payment: http://127.0.0.1:8080/mock/payment/charge
 
-### 4. 手工启动（可选）
-如果需要手工启动单个组件，可以参考以下命令：
+### 4. 手工编译和启动（可选）
+如果需要手工编译或启动单个组件：
+
+#### 单独编译项目
+```bash
+# Windows
+build.bat
+
+# Linux/Mac
+chmod +x build.sh
+./build.sh
+```
+
+#### 手工启动服务
 ```bash
 # 启动基础设施
 docker-compose up -d
@@ -258,8 +265,8 @@ java -jar micro-order-service/target/micro-order-service-1.0.0.jar
 | 脚本 | 说明 |
 |------|------|
 | `build.bat` / `build.sh` | 编译整个项目，打包所有模块 |
-| `start-all.bat` / `start-all.sh` | 一键启动 Docker 基础设施 + 三个微服务 |
-| `stop-all.bat` / `stop-all.sh` | 一键停止三个微服务 + Docker 基础设施 |
+| `start-all.bat` / `start-all.sh` | 一键启动：Maven 编译打包 → Docker 基础设施 → 三个微服务 |
+| `stop-all.bat` / `stop-all.sh` | 一键停止：三个微服务 → Docker 基础设施 |
 
 ## 日志文件
 所有服务日志会保存在项目根目录的 `logs/` 目录下：

@@ -41,16 +41,38 @@
    - 已引入 `spring-cloud-starter-gateway`
    - 已引入 `spring-cloud-starter-loadbalancer`
 
-2. `micro-order-service/src/main/java/com/microservice/order/OrderServiceApplication.java`
+2. `micro-gateway/src/main/resources/application.yml`
+   - 网关路由配置：使用 `lb://` 协议启用服务发现和负载均衡
+   - 禁用 Ribbon（使用 Spring Cloud LoadBalancer
+   - 网关自身也注册到 Nacos（`register-enabled: true`）
+   - 路由示例：
+     ```yaml
+     routes:
+       - id: user-service
+         uri: lb://user-service
+         predicates:
+           - Path=/api/user/**
+     ```
+
+3. `micro-gateway/src/main/java/com/microservice/gateway/config/LoadBalancerConfig.java`
+   - 负载均衡策略配置类
+   - 用户服务：随机策略（`RandomLoadBalancer`）
+   - 订单服务：轮询策略（`RoundRobinLoadBalancer`）
+   - 可扩展：可以针对不同服务配置不同策略
+
+4. `micro-order-service/src/main/java/com/microservice/order/OrderServiceApplication.java`
    - 已启用 `@EnableFeignClients`
 
-3. `micro-order-service/src/main/java/com/microservice/order/feign/UserFeignClient.java`
+5. `micro-order-service/src/main/java/com/microservice/order/feign/UserFeignClient.java`
    - 通过 `@FeignClient(name = "user-service", ...)` 按服务名调用用户服务
 
 ### 结论
 
-- 负载均衡能力已实现。
-- 当前网关路由为了本地稳定演示默认写死 `127.0.0.1` 端口转发，但服务发现和按服务名调用能力仍然保留。
+- 负载均衡能力已完整实现：
+  - 网关使用 `lb://` 协议 + Nacos 服务发现
+  - 负载均衡策略可配置（随机、轮询等）
+  - Feign 客户端也具备负载均衡能力
+  - 不再写死端口，完全通过服务名调用 
 
 ## 3. 熔断降级
 
