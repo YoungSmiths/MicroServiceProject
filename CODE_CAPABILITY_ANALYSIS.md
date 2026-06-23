@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 负载均衡 | 已实现 | Gateway + LoadBalancer、OpenFeign 按服务名调用 |
 | 熔断降级 | 已实现 | Resilience4j `CircuitBreaker` + Feign fallback |
-| 限流 | 已实现 | Gateway `RequestRateLimiter` + Redis 限流桶 |
+| 限流 | 已实现 | Gateway `RequestRateLimiter` + Redis 令牌桶 + Sentinel 网关限流 |
 | 服务隔离 | 已实现 | Resilience4j `Bulkhead` 信号量隔离 |
 | 超时重试 | 已实现 | 第三方支付客户端短超时 + `@Retryable` 自动重试 |
 | 第三方调用 | 已实现 | 订单服务通过 HTTP 调用模拟第三方支付平台 |
@@ -43,7 +43,7 @@
 
 2. `micro-gateway/src/main/resources/application.yml`
    - 网关路由配置：使用 `lb://` 协议启用服务发现和负载均衡
-   - 禁用 Ribbon（使用 Spring Cloud LoadBalancer
+   - 禁用 Ribbon（使用 Spring Cloud LoadBalancer）
    - 网关自身也注册到 Nacos（`register-enabled: true`）
    - 路由示例：
      ```yaml
@@ -102,6 +102,7 @@
    - `user-service` 路由配置了 `RequestRateLimiter`
    - `order-service` 路由配置了 `RequestRateLimiter`
    - 已指定 `redis-rate-limiter.replenishRate` 和 `burstCapacity`
+   - 已配置 `spring.cloud.sentinel.transport.dashboard` 和 `spring.cloud.sentinel.scg.fallback`
 
 2. `micro-gateway/src/main/java/com/microservice/gateway/config/RateLimitConfig.java`
    - 提供 `ipKeyResolver`
@@ -110,11 +111,16 @@
 3. `micro-gateway/pom.xml`
    - 已引入 `spring-boot-starter-data-redis-reactive`
    - 网关限流直接依赖 Redis 令牌桶
+   - 已引入 `spring-cloud-starter-alibaba-sentinel`
+   - 已引入 `spring-cloud-alibaba-sentinel-gateway`
 
 ### 结论
 
-- 网关限流已实现。
-- 超限时会返回 HTTP `429 Too Many Requests`，这是当前 Spring Cloud Gateway `RequestRateLimiter` 的标准行为。
+- 网关限流已实现，并采用“双层限流”：
+  - 第一层：Sentinel Gateway，支持在 Dashboard 中动态配置规则
+  - 第二层：Gateway `RequestRateLimiter` + Redis 令牌桶，作为静态兜底
+- Redis 令牌桶超限时，会返回 HTTP `429 Too Many Requests`，这是当前 Spring Cloud Gateway `RequestRateLimiter` 的标准行为。
+- Sentinel Gateway 命中规则时，会返回配置的自定义响应体。
 
 ## 5. 服务隔离
 
@@ -241,7 +247,68 @@
 
 - 分库分表能力已完整实现，并且和数据库部署方式保持一致。
 
-## 11. 验证方式
+## 11. 双保险架构：Sentinel + Resilience4j
+
+### 架构设计
+
+本项目采用 **"网关层 Sentinel + 服务层 Resilience4j"** 的双保险架构，充分发挥两者优势：
+
+| 层级 | 组件 | 职责 | 优势 |
+| --- | --- | --- | --- |
+| **网关层** | Sentinel | 入口限流、热点参数限流、系统自适应保护 | 动态规则实时生效，无需重启服务；可视化监控面板 |
+| **服务层** | Resilience4j | 熔断降级、服务隔离、内部接口保护 | 静态配置更稳定，代码级控制更精细 |
+
+### 体现位置
+
+1. **网关层 Sentinel**：
+   - `micro-gateway/pom.xml`：引入 `spring-cloud-starter-alibaba-sentinel` 和 `spring-cloud-alibaba-sentinel-gateway`
+   - `micro-gateway/src/main/resources/application.yml`：在 `spring.cloud.sentinel` 下配置 Dashboard 连接、客户端端口和 `scg` 降级返回
+   - 网关启动后会向 Sentinel Dashboard 注册，应用名显示为 `micro-gateway`
+   - 使用方式：在 Sentinel Dashboard（默认 `http://127.0.0.1:8181`）中直接配置网关流控规则，实时生效
+
+2. **服务层 Resilience4j**：
+   - `micro-order-service/pom.xml`：引入 `resilience4j-spring-boot2`
+   - `micro-order-service/src/main/java/com/microservice/order/service/ThirdPartyPaymentService.java`：`@CircuitBreaker` 和 `@Bulkhead` 注解使用
+   - `micro-order-service/src/main/resources/application.yml`：配置熔断和舱壁参数
+
+### 同时配置两个怎么办？
+
+执行顺序按调用链叠加生效：
+```
+请求 → Sentinel 限流 → Gateway RequestRateLimiter → Resilience4j 熔断/隔离 → 业务逻辑
+```
+
+- **Sentinel**：网关入口第一关，按 QPS、热点参数等维度拦截
+- **Gateway RequestRateLimiter**：Redis 令牌桶限流，作为 Sentinel 的补充
+- **Resilience4j**：服务内部最后一道防线，按接口/资源维度熔断和隔离
+
+### 验证 Sentinel
+
+1. 确保 Sentinel Dashboard 运行（docker-compose 中已有 sentinel-dashboard，端口 8181）
+2. 启动网关服务，确认 `micro-gateway` 已在控制台应用列表中出现
+3. 若页面未立即显示，先访问一次网关接口，例如 `GET /api/user/hello` 产生流量
+4. 在 Dashboard 中选择 `micro-gateway` 应用，配置流控规则（例如 QPS=5）
+5. 快速连续访问接口，验证 Sentinel 规则是否生效
+
+### 接入注意事项
+
+1. `micro-gateway/src/main/resources/application.yml` 中，Sentinel 配置必须位于同一个 `spring.cloud` 根节点下
+2. 若错误地把 `spring:` 拆成两段，`spring.cloud.sentinel.transport.dashboard` 虽然写在文件里，但运行时会读取不到，表现为：
+   - 网关进程能启动
+   - Dashboard 中看不到 `micro-gateway`
+   - Sentinel 客户端端口与 dashboard 地址为 `null`
+3. 正确配置后，网关会监听业务端口 `8080` 和 Sentinel 客户端端口 `8719`
+
+### 生产最佳实践
+
+1. **Sentinel 规则持久化**：推荐将 Sentinel 规则存储在 Nacos 中，避免重启后规则丢失（配置已在 application.yml 中注释，按需启用）
+2. **分层控制**：
+   - 网关层：控制整体入口流量
+   - 服务层：保护核心业务接口
+3. **监控告警**：利用 Sentinel Dashboard 观察流量趋势，及时调整规则
+4. **命名一致性**：控制台中展示的应用名以 `spring.application.name` 为准，本项目网关应用名为 `micro-gateway`
+
+## 12. 验证方式
 
 ### 1. 验证第三方调用、超时重试、熔断降级、服务隔离
 
@@ -284,7 +351,7 @@
    - Seata 开启时，订单库和用户库都应回滚
    - 若关闭 Seata，这个场景会出现“远程已成功、本地回滚”的数据不一致，可直观看到全局事务的价值
 
-## 12. 当前结论
+## 13. 当前结论
 
 当前项目中以下能力均已在代码层真正落地：
 

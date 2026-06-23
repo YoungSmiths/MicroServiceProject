@@ -2,6 +2,7 @@ package com.microservice.order.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -14,6 +15,7 @@ import org.springframework.web.client.RestTemplate;
 public class PaymentClientConfig {
 
     @Bean("paymentRequestFactory")
+    @Primary
     public ClientHttpRequestFactory paymentRequestFactory() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(1000);

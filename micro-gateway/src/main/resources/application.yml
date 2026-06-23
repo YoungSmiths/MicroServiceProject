@@ -72,40 +72,39 @@ spring:
     loadbalancer:
       ribbon:
         enabled: false
+    sentinel:
+      eager: true
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:127.0.0.1:8181}
+        port: 8719
+      scg:
+        fallback:
+          mode: response
+          response-body: '{"code":429,"message":"Sentinel 限流，请稍后再试"}'
+  redis:
+    host: ${REDIS_HOST:127.0.0.1}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    database: 0
+    timeout: 3000
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        max-wait: -1
 
-# Sentinel 配置
-sentinel:
-  eager: true
-  transport:
-    dashboard: ${SENTINEL_DASHBOARD:127.0.0.1:8181}
-    port: 8719
-  # 当 Sentinel 连接失败时，不影响服务正常启动
-  scg:
-    fallback:
-      mode: response
-      response-body: "{\"code\":429,\"message\":\"Sentinel 限流，请稍后再试\"}"
-  # Sentinel 数据源配置（可选，用于持久化规则）
-  # datasource:
-  #   flow:
-  #     nacos:
-  #       server-addr: ${NACOS_SERVER:127.0.0.1:8848}
-  #       data-id: ${spring.application.name}-flow-rules
-  #       group-id: SENTINEL_GROUP
-  #       rule-type: flow
-
-# Redisson 配置
-spring.redis:
-  host: ${REDIS_HOST:127.0.0.1}
-  port: ${REDIS_PORT:6379}
-  password: ${REDIS_PASSWORD:}
-  database: 0
-  timeout: 3000
-  lettuce:
-    pool:
-      max-active: 8
-      max-idle: 8
-      min-idle: 0
-      max-wait: -1
+# Sentinel 数据源配置（可选，用于持久化规则）
+# spring:
+#   cloud:
+#     sentinel:
+#       datasource:
+#         flow:
+#           nacos:
+#             server-addr: ${NACOS_SERVER:127.0.0.1:8848}
+#             data-id: ${spring.application.name}-flow-rules
+#             group-id: SENTINEL_GROUP
+#             rule-type: flow
 
 # 日志配置
 logging:

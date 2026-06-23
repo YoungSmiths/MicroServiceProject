@@ -85,6 +85,12 @@
             <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
 
+        <!-- Spring Cloud LoadBalancer -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+
         <!-- AOP (Retry / Resilience4j 注解支持) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -101,7 +107,7 @@
         <dependency>
             <groupId>io.github.resilience4j</groupId>
             <artifactId>resilience4j-spring-boot2</artifactId>
-            <version>1.7.1</version>
+            <version>1.7.0</version>
         </dependency>
 
         <!-- Lombok -->
