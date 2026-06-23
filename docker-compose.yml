@@ -1,0 +1,130 @@
+version: '3.8'
+
+services:
+  # Nacos 注册中心
+  nacos:
+    image: nacos/nacos-server:v2.2.3
+    container_name: nacos
+    environment:
+      - MODE=standalone
+      - JVM_XMS=512m
+      - JVM_XMX=512m
+      - JVM_XMN=256m
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    volumes:
+      - ./data/nacos:/home/nacos/data
+      - ./logs/nacos:/home/nacos/logs
+    networks:
+      - micro-network
+
+  # MySQL 用户库0
+  mysql-user-db0:
+    image: mysql:8.0
+    container_name: mysql-user-db0
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=user_db0
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data/mysql/user_db0:/var/lib/mysql
+      - ./scripts/init-db0.sql:/docker-entrypoint-initdb.d/init-db0.sql
+      - ./scripts/init-db1.sql:/docker-entrypoint-initdb.d/init-db1.sql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - micro-network
+
+  # MySQL 用户库1
+  mysql-user-db1:
+    image: mysql:8.0
+    container_name: mysql-user-db1
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=user_db1
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./data/mysql/user_db1:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - micro-network
+
+  # MySQL 订单库0
+  mysql-order-db0:
+    image: mysql:8.0
+    container_name: mysql-order-db0
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=order_db0
+    ports:
+      - "3308:3306"
+    volumes:
+      - ./data/mysql/order_db0:/var/lib/mysql
+      - ./scripts/init-db2.sql:/docker-entrypoint-initdb.d/init-db2.sql
+      - ./scripts/init-db3.sql:/docker-entrypoint-initdb.d/init-db3.sql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - micro-network
+
+  # MySQL 订单库1
+  mysql-order-db1:
+    image: mysql:8.0
+    container_name: mysql-order-db1
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=order_db1
+    ports:
+      - "3309:3306"
+    volumes:
+      - ./data/mysql/order_db1:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - micro-network
+
+  # Redis
+  redis:
+    image: redis:7.0-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+    command: redis-server --appendonly yes --requirepass 123456
+    networks:
+      - micro-network
+
+  # Seata Server
+  seata-server:
+    image: seataio/seata-server:1.7.0
+    container_name: seata-server
+    environment:
+      - STORE_MODE=db
+      - SEATA_CONFIG_NAME=file:/root/seata-config/registry
+      - JVM_XMS=512m
+      - JVM_XMX=512m
+    ports:
+      - "8091:8091"
+    volumes:
+      - ./config/seata:/root/seata-config
+      - ./data/seata:/root/seata/logs
+    depends_on:
+      - nacos
+    networks:
+      - micro-network
+
+  # Sentinel 控制台
+  sentinel:
+    image: bladex/sentinel-dashboard:1.8.6
+    container_name: sentinel
+    environment:
+      - JAVA_OPTS=-Dserver.port=8081
+    ports:
+      - "8181:8858"
+    networks:
+      - micro-network
+
+networks:
+  micro-network:
+    driver: bridge

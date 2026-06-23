@@ -1,0 +1,48 @@
+# Nacos 配置
+# 配置示例
+
+spring:
+  application:
+    name: micro-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:public}
+        group: MICRO_GROUP
+      config:
+        server-addr: ${NACOS_SERVER:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:public}
+        group: MICRO_GROUP
+        file-extension: yaml
+
+# Gateway 路由配置
+gateway:
+  routes:
+    - id: user-service
+      uri: lb://user-service
+      predicates:
+        - Path=/user/**
+      filters:
+        - StripPrefix=1
+    - id: order-service
+      uri: lb://order-service
+      predicates:
+        - Path=/order/**
+      filters:
+        - StripPrefix=1
+
+# Sentinel 流控规则
+sentinel:
+  rules:
+    gateway:
+      - resource: /user/**
+        count: 100
+        intervalSec: 1
+        controlBehavior: 0
+        strategy: 0
+      - resource: /order/**
+        count: 100
+        intervalSec: 1
+        controlBehavior: 0
+        strategy: 0
