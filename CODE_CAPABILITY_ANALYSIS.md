@@ -99,16 +99,24 @@
 ### 体现位置
 
 1. `micro-gateway/src/main/resources/application.yml`
-   - `user-service` 路由配置了 `RequestRateLimiter`
-   - `order-service` 路由配置了 `RequestRateLimiter`
-   - 已指定 `redis-rate-limiter.replenishRate` 和 `burstCapacity`
+   - `user-service` 路由配置了 `RequestRateLimiter`（第二层）：
+     - `redis-rate-limiter.replenishRate: 20`（每秒补充令牌数）
+     - `redis-rate-limiter.burstCapacity: 40`（桶容量，允许的最大突发请求数）
+   - `order-service` 路由配置了 `RequestRateLimiter`（第二层）：
+     - `redis-rate-limiter.replenishRate: 10`
+     - `redis-rate-limiter.burstCapacity: 20`
    - 已配置 `spring.cloud.sentinel.transport.dashboard` 和 `spring.cloud.sentinel.scg.fallback`
 
 2. `micro-gateway/src/main/java/com/microservice/gateway/config/RateLimitConfig.java`
    - 提供 `ipKeyResolver`
    - 以来源 IP 作为限流维度
 
-3. `micro-gateway/pom.xml`
+3. `micro-gateway/src/main/java/com/microservice/gateway/config/SentinelConfig.java`（新增）
+   - 初始化 Sentinel Gateway 限流规则（第一层）
+   - user-service：QPS=30
+   - order-service：QPS=15
+
+4. `micro-gateway/pom.xml`
    - 已引入 `spring-boot-starter-data-redis-reactive`
    - 网关限流直接依赖 Redis 令牌桶
    - 已引入 `spring-cloud-starter-alibaba-sentinel`
@@ -116,11 +124,17 @@
 
 ### 结论
 
-- 网关限流已实现，并采用“双层限流”：
-  - 第一层：Sentinel Gateway，支持在 Dashboard 中动态配置规则
-  - 第二层：Gateway `RequestRateLimiter` + Redis 令牌桶，作为静态兜底
-- Redis 令牌桶超限时，会返回 HTTP `429 Too Many Requests`，这是当前 Spring Cloud Gateway `RequestRateLimiter` 的标准行为。
-- Sentinel Gateway 命中规则时，会返回配置的自定义响应体。
+- ✅ 网关限流已实现，并采用“双层限流”：
+  - **第一层（动态）**：Sentinel Gateway
+    - 默认规则：user-service QPS=30, order-service QPS=15
+    - 支持在 Sentinel Dashboard 中动态调整规则，无需重启
+    - 命中规则时返回 `{"code":429,"message":"Sentinel 限流，请稍后再试"}`
+  - **第二层（静态兜底）**：Gateway `RequestRateLimiter` + Redis 令牌桶
+    - user-service：replenishRate=20, burstCapacity=40
+    - order-service：replenishRate=10, burstCapacity=20
+    - 以来源 IP 作为限流维度
+    - 超限时返回 HTTP `429 Too Many Requests`
+- 双层限流共同保护网关，提供双重保障
 
 ## 5. 服务隔离
 
