@@ -50,7 +50,7 @@ spring:
       ds1:
         type: com.alibaba.druid.pool.DruidDataSource
         driver-class-name: com.mysql.cj.jdbc.Driver
-        url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/user_db1?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+        url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3307/user_db1?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
         username: ${MYSQL_USER:root}
         password: ${MYSQL_PASSWORD:root}
         initial-size: 5

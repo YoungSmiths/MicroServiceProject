@@ -81,8 +81,27 @@ if errorlevel 1 (
 )
 
 echo [INFO] Starting infrastructure services (Docker)...
-echo [%date% %time%] docker compose up -d >> "%LOG_FILE%"
-docker compose up -d >> "%LOG_FILE%" 2>&1
+set "DOCKER_COMPOSE_OK="
+for /l %%i in (1,1,3) do (
+    echo [INFO] Docker compose start attempt %%i/3...
+    echo [%date% %time%] docker compose up -d attempt %%i >> "%LOG_FILE%"
+    docker compose up -d >> "%LOG_FILE%" 2>&1
+    if not errorlevel 1 (
+        set "DOCKER_COMPOSE_OK=1"
+        goto :docker_compose_done
+    )
+    echo [WARN] Docker compose attempt %%i failed
+    echo [%date% %time%] docker compose attempt %%i failed >> "%LOG_FILE%"
+    timeout /t 5 /nobreak > nul
+)
+
+:docker_compose_done
+if not defined DOCKER_COMPOSE_OK (
+    echo [ERROR] Failed to start Docker infrastructure after 3 attempts
+    echo [ERROR] Check logs/start-all.log and run `docker compose ps` or `docker compose logs`
+    echo [%date% %time%] docker infrastructure start failed, aborting service startup >> "%LOG_FILE%"
+    exit /b 1
+)
 
 echo [INFO] Waiting for infrastructure to start (15 seconds)...
 timeout /t 15 /nobreak > nul

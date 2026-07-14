@@ -1,5 +1,5 @@
-# Only start the microservices (skip build and docker infrastructure)
-# Requires: JAR files already built, infrastructure already running
+# Start microservices and ensure docker infrastructure is running first.
+# Requires: JAR files already built.
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Starting Microservices Only" -ForegroundColor Cyan
@@ -33,7 +33,43 @@ if (-not (Test-Path $ORDER_JAR)) {
 Write-Host "[OK] All JAR files found" -ForegroundColor Green
 
 Write-Host ""
-Write-Host "[2/3] Starting services..." -ForegroundColor Yellow
+Write-Host "[2/4] Checking Docker infrastructure..." -ForegroundColor Yellow
+
+try {
+    docker --version | Out-Null
+} catch {
+    Write-Host "[ERROR] Docker not found or not running" -ForegroundColor Red
+    exit 1
+}
+
+$dockerStarted = $false
+$composePs = docker compose ps --format json 2>$null
+if ([string]::IsNullOrWhiteSpace($composePs)) {
+    Write-Host "[INFO] Docker infrastructure is not running, starting with docker compose..." -ForegroundColor Cyan
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        Write-Host "[INFO] docker compose up -d attempt $attempt/3" -ForegroundColor Cyan
+        docker compose up -d
+        if ($LASTEXITCODE -eq 0) {
+            $dockerStarted = $true
+            break
+        }
+        Start-Sleep -Seconds 5
+    }
+
+    if (-not $dockerStarted) {
+        Write-Host "[ERROR] Failed to start Docker infrastructure after 3 attempts" -ForegroundColor Red
+        Write-Host "        Run 'docker compose ps' or 'docker compose logs' for details." -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "[INFO] Waiting 15 seconds for infrastructure startup..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 15
+} else {
+    Write-Host "[OK] Docker infrastructure already running" -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host "[3/4] Starting services..." -ForegroundColor Yellow
 
 # Set environment variables
 $env:NACOS_SERVER = "127.0.0.1:8848"
@@ -60,7 +96,7 @@ $orderArgs = "-DNACOS_SERVER=127.0.0.1:8848 -DSENTINEL_DASHBOARD=127.0.0.1:8181 
 $orderProc = Start-Process -FilePath $JAVA_EXE -ArgumentList $orderArgs -WindowStyle Normal -PassThru -WorkingDirectory $SCRIPT_DIR
 
 Write-Host ""
-Write-Host "[3/3] All services started!" -ForegroundColor Green
+Write-Host "[4/4] All services started!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Process IDs:" -ForegroundColor Cyan
 Write-Host "  Gateway: $($gatewayProc.Id)"
